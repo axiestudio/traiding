@@ -10,6 +10,7 @@
 //! transition is reported through `stream:status`.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 
 use apca::api::v2::updates::OrderUpdates;
@@ -40,6 +41,16 @@ const EVENT_QUOTE: &str = "market:quote";
 const EVENT_TRADE: &str = "market:trade";
 const EVENT_ORDER: &str = "trade:update";
 const EVENT_STATUS: &str = "stream:status";
+static MARKET_STATE: AtomicU8 = AtomicU8::new(0);
+static ORDERS_STATE: AtomicU8 = AtomicU8::new(0);
+
+/// Current feed states, readable without waiting for an event.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedStatus {
+    pub market: &'static str,
+    pub orders: &'static str,
+}
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -75,7 +86,30 @@ struct StreamStatus {
     state: &'static str,
 }
 
+fn code(state: &str) -> u8 {
+    match state {
+        "live" => 2,
+        "connecting" => 1,
+        _ => 0,
+    }
+}
+
+fn state(code: u8) -> &'static str {
+    match code {
+        2 => "live",
+        1 => "connecting",
+        _ => "offline",
+    }
+}
+
 fn status(app: &AppHandle, channel: &'static str, state: &'static str) {
+    let slot = if channel == "market" {
+        &MARKET_STATE
+    } else {
+        &ORDERS_STATE
+    };
+    slot.store(code(state), Ordering::Relaxed);
+
     if let Err(err) = app.emit(
         EVENT_STATUS,
         StreamStatus {
@@ -84,6 +118,13 @@ fn status(app: &AppHandle, channel: &'static str, state: &'static str) {
         },
     ) {
         debug!(%err, channel, state, "stream status not delivered");
+    }
+}
+
+pub fn feed_state() -> FeedStatus {
+    FeedStatus {
+        market: state(MARKET_STATE.load(Ordering::Relaxed)),
+        orders: state(ORDERS_STATE.load(Ordering::Relaxed)),
     }
 }
 
@@ -181,6 +222,12 @@ pub async fn market_loop(
                         Some(Ok(Ok(Data::Quote(quote)))) => {
                             let bid = number(&quote.bid_price);
                             let ask = number(&quote.ask_price);
+                            let mid = match (bid > 0.0, ask > 0.0) {
+                                (true, true) => (bid + ask) / 2.0,
+                                (true, false) => bid,
+                                (false, true) => ask,
+                                (false, false) => 0.0,
+                            };
                             let event = QuoteEvent {
                                 symbol: quote.symbol,
                                 time: quote.timestamp.to_rfc3339(),
@@ -188,7 +235,7 @@ pub async fn market_loop(
                                 ask,
                                 bid_size: whole(&quote.bid_size),
                                 ask_size: whole(&quote.ask_size),
-                                mid: (bid + ask) / 2.0,
+                                mid,
                             };
                             if let Err(err) = app.emit(EVENT_QUOTE, event) {
                                 debug!(%err, "quote event not delivered");

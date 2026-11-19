@@ -44,6 +44,11 @@ export function getAgentStatus(): Promise<AgentStatus> {
   return invoke<AgentStatus>('agent_status')
 }
 
+/** Validate and save a new OpenRouter key. The key is never returned. */
+export function setAgentKey(key: string): Promise<AgentStatus> {
+  return invoke<AgentStatus>('agent_set_key', { key })
+}
+
 /**
  * Run one assistant turn.
  *

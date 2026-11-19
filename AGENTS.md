@@ -18,9 +18,10 @@ Lightweight Charts. No HTTP server.
 ## Non-negotiables
 
 1. **One process.** No axum, no listening port. UI ⇄ Rust is Tauri IPC only.
-2. **Credentials never reach the webview and the app never writes them to disk.**
-   Only a masked key (`PKTE…3456`) is returned. Preferences and market data do
-   go to SQLite; no secret ever does.
+2. **Credentials never reach the webview.** Only a masked key (`PKTE…3456`) is
+   returned. A successful Alpaca connect writes the key pair to the app-config
+   `.env` (0600) so the next launch can connect; the agent key uses the same
+   file. SQLite never stores a secret.
 3. **Wire names are camelCase.** Rust request structs use
    `#[serde(rename_all = "camelCase")]`; `ui/src/api.ts` must send exactly that.
 4. **Read Astryx props from `node_modules/.../dist/*.d.ts`**, never from memory.

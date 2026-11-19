@@ -23,7 +23,7 @@ you need; do not read them all.
 
 ## Current state
 
-- Version 0.1.0, single binary ≈ 7.7 MB stripped (bundled SQLite).
+- Version 0.2.0, single binary ≈ 7.7 MB stripped (bundled SQLite).
 - IPC covers session, account, orders, bars/quotes, streams, backtests and storage.
 - IEX quote/trade stream and order-update stream run in Rust behind Tauri events;
   REST polling remains the fallback.
@@ -31,8 +31,10 @@ you need; do not read them all.
   backtests survive a restart.
 - BYOK agent: `src/agent.rs` streams OpenRouter, prepends a Rust-owned
   paper/live prompt and runs 10 read-only tools. Tool cards and run errors
-  render inline; the key never reaches the webview.
-- Verified 2026-11-19: 1440×900 and 1080×720 browser captures, live-feed badge,
-  trade/backtest tabs and a backtest result; agent reply, ordered tool card,
-  markdown bold and inline error at both sizes; 29 Rust tests, typecheck green.
-- Not built: watchlist, asset autocomplete, intraday/portfolio backtests.
+  render inline; the key stays in Rust (Agent pane form).
+- Alpaca + OpenRouter keys persist only in the app-config `.env` (0600) via
+  `src/config.rs`; SQLite holds preferences, candles and snapshots.
+- Verified 2026-11-19: v0.2.0 installed; connect saved `.env` (0600) and relaunch
+  auto-connected; Agent key merged into the same file; NVDA restored from
+  SQLite; pre-market IEX quote at 08:33 ET; 33 Rust tests, typecheck green.
+- Not built: watchlist, intraday/portfolio backtests.

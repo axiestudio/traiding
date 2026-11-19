@@ -166,7 +166,7 @@ export function ConnectDialog({ isOpen, onConnected }: ConnectDialogProps) {
         footer={
           <LayoutFooter hasDivider>
             <HStack gap={2} justify="end" align="center">
-              <span className="dialog__security">Keys are never saved.</span>
+              <span className="dialog__security">Stored locally.</span>
               <Button
                 label={busy ? 'Connecting…' : 'Connect'}
                 variant="primary"

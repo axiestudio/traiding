@@ -56,7 +56,8 @@ web deployment.
 ## Accessibility and interaction
 
 - Every icon-only control has an accessible label. Status is never colour-only.
-- Ctrl/Cmd+K focuses the symbol field, as before.
+- Ctrl/Cmd+K opens the symbol selector. The selector lists liquid names without
+  typing; typing searches the full tradable asset list.
 - Buttons are disabled while their request is in flight; errors appear inline,
   never as a bare alert.
 - Escape closes no trading surface because none is modal; the connect dialog

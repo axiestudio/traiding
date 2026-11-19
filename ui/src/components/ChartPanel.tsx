@@ -1,17 +1,17 @@
 /**
- * Chart pane: symbol entry, last price, range selector, quote strip and the
+ * Chart pane: symbol picker, last price, range selector, quote strip and the
  * candlestick chart itself.
  */
 
 import { SegmentedControl } from '@astryxdesign/core/SegmentedControl'
 import { SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
-import { TextInput } from '@astryxdesign/core/TextInput'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 
 import { fmtNum, signed } from '../api'
 import type { Bar, Quote } from '../api'
 import { ChartLegend, PriceChart } from './PriceChart'
+import { SymbolPicker } from './SymbolPicker'
 
 /** The five ranges the terminal has always offered. */
 export const RANGES = [
@@ -29,6 +29,8 @@ interface ChartPanelProps {
   range: RangeId
   bars: Bar[]
   quote: Quote | null
+  price: number | null
+  resetKey: string
   loading: boolean
   error: string | null
   isLive: boolean
@@ -41,59 +43,34 @@ export function ChartPanel({
   range,
   bars,
   quote,
+  price,
+  resetKey,
   loading,
   error,
   isLive,
   onSymbolChange,
   onRangeChange,
 }: ChartPanelProps) {
-  const [draft, setDraft] = useState(symbol)
   const [hovered, setHovered] = useState<Bar | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
 
-  // The symbol can also change from elsewhere (the order ticket), so mirror it
-  // into the field — but never while the user is typing in it.
-  useEffect(() => {
-    if (document.activeElement !== inputRef.current) {
-      setDraft(symbol)
-    }
-  }, [symbol])
-
-  const last = bars.length ? bars[bars.length - 1].close : null
-  const { change, pct } = rangeChange(bars)
-
-  function commitSymbol(raw: string) {
-    const next = raw.trim().toUpperCase()
-    if (/^[A-Z][A-Z0-9.]{0,9}$/.test(next) && next !== symbol) {
-      onSymbolChange(next)
-    } else {
-      setDraft(symbol)
-    }
-  }
+  const { change, pct } = rangeChange(bars, price)
 
   return (
     <>
       <div className="chart-head">
         <div className="chart-head__symbol">
-          <TextInput
-            ref={inputRef}
-            label="Symbol"
-            isLabelHidden
-            placeholder="AAPL"
-            value={draft}
-            onChange={(value) => setDraft(value.toUpperCase())}
-            onEnter={() => commitSymbol(draft)}
-            onBlur={() => commitSymbol(draft)}
-            autoCapitalize="characters"
-          />
+          <SymbolPicker value={symbol} onChange={onSymbolChange} />
         </div>
 
         <div className="chart-head__price">
-          <div className="chart-head__last">{last !== null ? fmtNum(last) : '—'}</div>
+          <div className="chart-head__last">{price !== null ? fmtNum(price) : '—'}</div>
           {change !== null && pct !== null ? (
-            <span className={`cell-num ${change > 0 ? 'up' : change < 0 ? 'down' : 'flat'}`}>
-              {signed(change)} ({signed(pct)}%)
-            </span>
+            <>
+              <span className={`cell-num ${change > 0 ? 'up' : change < 0 ? 'down' : 'flat'}`}>
+                {signed(change)} ({signed(pct)}%)
+              </span>
+              <span className="chart-head__period">{range}</span>
+            </>
           ) : null}
         </div>
 
@@ -113,15 +90,18 @@ export function ChartPanel({
 
       <div className="quote-strip">
         <span className="quote-strip__pair quote-strip__pair--bid">
-          bid <b>{quote ? fmtNum(quote.bid) : '—'}</b>
+          bid <b>{quote && quote.bid > 0 ? fmtNum(quote.bid) : '—'}</b>
         </span>
         <span className="quote-strip__pair quote-strip__pair--ask">
-          ask <b>{quote ? fmtNum(quote.ask) : '—'}</b>
+          ask <b>{quote && quote.ask > 0 ? fmtNum(quote.ask) : '—'}</b>
         </span>
         <span className="quote-strip__pair">
-          mid <b>{quote ? fmtNum(quote.mid) : '—'}</b>
+          mid <b>{quote && quote.mid > 0 ? fmtNum(quote.mid) : '—'}</b>
         </span>
-        <span className="quote-strip__feed" title="IEX feed">
+        <span
+          className="quote-strip__feed"
+          title="IEX realtime. SIP needs Algo Trader Plus."
+        >
           <b>IEX</b>
           {isLive ? (
             <span className="quote-strip__live">
@@ -130,29 +110,39 @@ export function ChartPanel({
             </span>
           ) : null}
         </span>
-        <span className="quote-strip__time">
-          {quote?.time ? new Date(quote.time).toLocaleTimeString() : ''}
+        <span className="quote-strip__time" title="New York time">
+          {quote?.time
+            ? `${new Date(quote.time).toLocaleTimeString('en-US', {
+                timeZone: 'America/New_York',
+                hour12: false,
+              })} ET`
+            : ''}
         </span>
       </div>
 
       <div className="chart-body">
-        <PriceChart bars={bars} onHover={setHovered} />
+        <PriceChart bars={bars} resetKey={resetKey} onHover={setHovered} />
         <ChartLegend bar={hovered} symbol={symbol} />
         {loading || error || bars.length === 0 ? (
           <div className="chart-overlay">
             {loading ? `Loading ${symbol}…` : error ? error : `No bars for ${symbol}`}
           </div>
         ) : null}
+
       </div>
     </>
   )
 }
 
 /** Exported for the header's price readout, which needs the same maths. */
-export function rangeChange(bars: Bar[]): { change: number | null; pct: number | null } {
+export function rangeChange(
+  bars: Bar[],
+  price?: number | null,
+): { change: number | null; pct: number | null } {
   if (bars.length < 2) return { change: null, pct: null }
   const first = bars[0].close
-  const last = bars[bars.length - 1].close
+  // The live quote can move the header before the last daily candle closes.
+  const last = price ?? bars[bars.length - 1].close
   if (first === 0) return { change: null, pct: null }
   const change = last - first
   return { change, pct: (change / first) * 100 }

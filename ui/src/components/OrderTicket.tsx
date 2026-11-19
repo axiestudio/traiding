@@ -25,7 +25,6 @@ interface OrderTicketProps {
   account: Account | null
   positions: Position[]
   lastPrice: number | null
-  paper: boolean
   onSubmitted: (order: Order) => void
 }
 
@@ -48,7 +47,6 @@ export function OrderTicket({
   account,
   positions,
   lastPrice,
-  paper,
   onSubmitted,
 }: OrderTicketProps) {
   const [side, setSide] = useState<'buy' | 'sell'>('buy')
@@ -252,10 +250,6 @@ export function OrderTicket({
       />
 
       {error ? <div className="ticket__error">{error}</div> : null}
-
-      <div className="ticket__hint">
-        {paper ? 'Paper' : 'Live'} trading · keys are never saved.
-      </div>
     </div>
   )
 }

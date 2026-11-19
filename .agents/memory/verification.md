@@ -6,7 +6,7 @@ What to run before calling a change done. Checks first, then rendering.
 
 ```bash
 cargo check --all-targets     # zero warnings
-cargo test                    # 29 Rust tests, 8 of them agent
+cargo test                    # 33 Rust tests, 8 of them agent
 npm run typecheck             # tsc --noEmit
 npm run build                 # UI + Tauri release bundle
 ```
@@ -49,7 +49,8 @@ sqlite3 "$DB" '.tables' 'PRAGMA user_version'
 ```
 
 Use `XDG_DATA_HOME=/tmp/traiding-xdg` when launching so a verification run
-never touches real preferences or history.
+never touches real preferences or history. Use `XDG_CONFIG_HOME=/tmp/traiding-config`
+as well so a test connect cannot overwrite the real credential `.env`.
 
 Expect `settings bars account_snapshots position_snapshots orders quotes backtests`
 and version `2`. Change symbol/range/tab, relaunch, and confirm they are restored.
@@ -78,7 +79,7 @@ npm run build
 mkdir -p /tmp/traiding-native /tmp/traiding-xdg && cd /tmp/traiding-native
 Xvfb :99 -screen 0 1440x900x24 &
 DISPLAY=:99 GDK_BACKEND=x11 WEBKIT_DISABLE_COMPOSITING_MODE=1 \
-  XDG_DATA_HOME=/tmp/traiding-xdg \
+  XDG_DATA_HOME=/tmp/traiding-xdg XDG_CONFIG_HOME=/tmp/traiding-config \
   /home/stefan/Projects/traiding/target/release/traiding &
 sleep 4
 DISPLAY=:99 ffmpeg -y -loglevel error -f x11grab \
@@ -92,6 +93,21 @@ not mapped there (gotcha 9). Xvfb is a private X server, so it is safe.
 Build **before** launching: packaging patches the release binary, and a running
 copy makes AppImage bundling fail with `Text file busy` (gotcha 13).
 
+## Credentials
+
+Run from a directory without `.env`, with both `XDG_DATA_HOME` and
+`XDG_CONFIG_HOME` pointed at temp directories. Enter the paper key pair; after
+Connect, confirm the file exists and is private, without printing the values:
+
+```bash
+CONFIG=${XDG_CONFIG_HOME:-$HOME/.config}/dev.traiding.terminal/.env
+stat -c '%a' "$CONFIG"          # 600
+cut -d= -f1 "$CONFIG" | grep -E '^APCA_(API_KEY_ID|API_SECRET_KEY|API_BASE_URL)$'
+```
+
+Relaunch from the same temp config with no keys exported; it must connect
+without the dialog. The database must still contain no secret.
+
 ## Interactions
 
 - Orders tab: sentence-case badges; Cancel only on open orders.
@@ -101,7 +117,11 @@ copy makes AppImage bundling fail with `Text file busy` (gotcha 13).
 
 ## Last verified
 
-2026-11-19 — v0.1.0 AppImage under Xvfb: connected with a paper key from the
-config-dir `.env`, IEX candles rendered, live agent turn returned a quote with
-an inline tool card. `cargo check`, 29 tests and `npm run typecheck` green.
-Browser-mock captures from the same day cover both window sizes.
+2026-11-19 — v0.2.0 AppImage installed at `~/.local/share/traiding`. Fresh
+`XDG_CONFIG_HOME`/`XDG_DATA_HOME`: the connect dialog saved the Alpaca pair to
+`.env` at 0600, a relaunch auto-connected from it, and the Agent key was merged
+into the same file without losing the Alpaca keys. NVDA/6M was restored from
+SQLite after a relaunch (`ui_state`, 124 bars, `integrity_check ok`). A
+pre-market IEX quote at 08:33 ET drove the header, quote strip and `feed live`.
+`cargo check`, 33 tests and `npm run typecheck` green. Browser-mock captures
+from the same day cover both window sizes.

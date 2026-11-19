@@ -92,6 +92,14 @@ pub async fn connect(
         return Err(bad_request("both an API key ID and a secret are required").into());
     }
 
+    if key_id.contains('\n')
+        || key_id.contains('\r')
+        || secret.contains('\n')
+        || secret.contains('\r')
+    {
+        return Err(bad_request("credentials must be a single line").into());
+    }
+
     // The connect form shows a Key ID, a Secret, and mentions an endpoint URL,
     // so people paste the URL into one of the credential boxes. Catch it here
     // rather than shipping a nonsense header to Alpaca.
@@ -128,10 +136,25 @@ pub async fn connect(
     }
     .to_string();
 
-    let session = Session::connect(key_id, secret, base_url, paper).await?;
+    let session =
+        Session::connect(key_id.clone(), secret.clone(), base_url.clone(), paper).await?;
     let info = SessionInfo::from_session(&session);
 
     state.set_session(session);
+
+    // Persist only after Alpaca accepted the pair. The app-config `.env` is
+    // read on the next launch, so the dialog stays away; SQLite never sees it.
+    if let Err(err) = crate::config::save_env(
+        &app,
+        &[
+            ("APCA_API_KEY_ID", key_id.as_str()),
+            ("APCA_API_SECRET_KEY", secret.as_str()),
+            ("APCA_API_BASE_URL", base_url.as_str()),
+        ],
+    ) {
+        tracing::warn!(%err, "Alpaca credentials not saved; this session still works");
+    }
+
     state.start_order_stream(app);
     Ok(info)
 }
@@ -602,6 +625,11 @@ pub struct Quote {
 /// Called on connect and on every symbol change. Without a session this is a
 /// harmless no-op so the UI can fire it while the connect dialog is open.
 #[tauri::command]
+pub fn feed_status() -> crate::stream::FeedStatus {
+    crate::stream::feed_state()
+}
+
+#[tauri::command]
 pub async fn set_stream_symbol(
     state: State<'_, Arc<AppState>>,
     app: AppHandle,
@@ -620,7 +648,12 @@ pub async fn get_quote(state: State<'_, Arc<AppState>>, symbol: String) -> Ipc<Q
     let session = state.session()?;
     let symbol = symbol.to_ascii_uppercase();
 
-    let req = last_quotes::GetReqInit::default().init([symbol.clone()]);
+    // IEX is real-time on every plan; SIP is 15 minutes delayed on Basic.
+    let req = last_quotes::GetReqInit {
+        feed: Some(Feed::IEX),
+        ..Default::default()
+    }
+    .init([symbol.clone()]);
     let quotes = session
         .client
         .issue::<last_quotes::Get>(&req)
@@ -629,16 +662,24 @@ pub async fn get_quote(state: State<'_, Arc<AppState>>, symbol: String) -> Ipc<Q
 
     match quotes.into_iter().next() {
         Some((symbol, quote)) => {
+            let bid = decimal_to_f64(&quote.bid_price);
+            let ask = decimal_to_f64(&quote.ask_price);
+            // IEX can return a one-sided quote after hours; a zero ask must not
+            // drag the mid down to half the bid.
+            let mid = match (bid > 0.0, ask > 0.0) {
+                (true, true) => (bid + ask) / 2.0,
+                (true, false) => bid,
+                (false, true) => ask,
+                (false, false) => 0.0,
+            };
             let quote = Quote {
                 symbol,
                 time: quote.time.to_rfc3339(),
-                bid: decimal_to_f64(&quote.bid_price),
-                ask: decimal_to_f64(&quote.ask_price),
+                bid,
+                ask,
                 bid_size: quote.bid_size,
                 ask_size: quote.ask_size,
-                mid: decimal_to_f64(
-                    &((quote.bid_price.clone() + quote.ask_price.clone()) / Num::from(2)),
-                ),
+                mid,
             };
 
             if let Some(storage) = state.storage()

@@ -27,6 +27,8 @@ import { fmtNum } from '../api'
 
 interface PriceChartProps {
   bars: Bar[]
+  /** Changes only on a symbol or range load, never on a live tick. */
+  resetKey: string
   onHover?: (bar: Bar | null) => void
 }
 
@@ -57,13 +59,13 @@ function candleData(bars: Bar[]): CandlestickData<Time>[] {
   }))
 }
 
-export function PriceChart({ bars, onHover }: PriceChartProps) {
+export function PriceChart({ bars, resetKey, onHover }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const candleRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null)
   const barsRef = useRef<Bar[]>([])
-  const signatureRef = useRef('')
+  const resetRef = useRef('')
   const hoverRef = useRef<PriceChartProps['onHover']>(onHover)
 
   // Keep the callback fresh without tearing the chart down every render.
@@ -178,7 +180,8 @@ export function PriceChart({ bars, onHover }: PriceChartProps) {
     }
   }, [])
 
-  // Push data whenever the series changes, then fit the visible range.
+  // Push data whenever the series changes. Fit only when the symbol/range key
+  // changes, so a live tick or a new live minute never drags the view.
   useEffect(() => {
     barsRef.current = bars
 
@@ -190,17 +193,15 @@ export function PriceChart({ bars, onHover }: PriceChartProps) {
     candles.setData(candleData(bars))
     volume.setData(volumeData(bars))
 
-    // Live ticks mutate the last bar in place. Re-fitting on those would drag
-    // the visible range under the cursor on every trade, so only fit when the
-    // bar window itself changed (new symbol or range).
-    const signature = bars.length
-      ? `${bars[0].time}:${bars[bars.length - 1].time}:${bars.length}`
-      : ''
-    if (signature !== signatureRef.current) {
-      signatureRef.current = signature
-      if (bars.length > 0) chart.timeScale().fitContent()
+    if (bars.length === 0) {
+      resetRef.current = ''
+      return
     }
-  }, [bars])
+    if (resetKey !== resetRef.current) {
+      resetRef.current = resetKey
+      chart.timeScale().fitContent()
+    }
+  }, [bars, resetKey])
 
   return <div ref={containerRef} className="chart-canvas" />
 }
@@ -211,7 +212,6 @@ export function ChartLegend({ bar, symbol }: { bar: Bar | null; symbol: string }
     return (
       <div className="chart-legend chart-legend--idle">
         <span className="chart-legend__symbol">{symbol}</span>
-        <span className="chart-legend__hint">hover for OHLCV</span>
       </div>
     )
   }

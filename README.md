@@ -2,9 +2,10 @@
 
 An Alpaca trading terminal as a **single Rust desktop app**. A live IEX chart,
 positions, orders, an order ticket and a backtester live in one native window;
-there is no server, no port and no browser tab. Credentials are held in the
-process and never written to disk. Preferences, market history and backtest
-results live in a local SQLite database.
+there is no server, no port and no browser tab. Credentials never reach the
+webview; a successful connect stores the Alpaca key pair in the app-config
+`.env` (0600). Preferences, market history and backtest results live in a local
+SQLite database; the database never holds a secret.
 
 ## Install
 
@@ -21,7 +22,7 @@ install.sh --deb            # system package
 install.sh --uninstall      # remove
 ```
 
-`TRAIDING_VERSION=v0.1.0` pins a release; `TRAIDING_REPO=you/traiding` uses a fork.
+`TRAIDING_VERSION=v0.2.0` pins a release; `TRAIDING_REPO=you/traiding` uses a fork.
 
 ## Develop
 
@@ -35,7 +36,12 @@ The window opens and asks for Alpaca keys. Paper trading is the default. The
 **Live** toggle switches the base URL to `https://api.alpaca.markets` — real
 money, and the dialog says so.
 
-To skip the dialog, put keys in `.env`:
+The first successful connect writes `APCA_API_KEY_ID`, `APCA_API_SECRET_KEY`
+and `APCA_API_BASE_URL` to `~/.config/dev.traiding.terminal/.env`, so the next
+launch connects without the dialog. Disconnect only clears the session; delete
+that file to forget the keys.
+
+To script a connection instead, put keys in the project `.env`:
 
 ```bash
 cp .env.example .env
@@ -47,16 +53,11 @@ the connect dialog appears instead.
 
 ## Agent
 
-BYOK chat in the **Agent** tab. Add an OpenRouter key to `.env` and restart:
+BYOK chat in the **Agent** tab; enter the OpenRouter key there. Rust validates it
+and saves it to `~/.config/dev.traiding.terminal/.env`.
 
-```bash
-OPENROUTER_API_KEY=sk-or-...
-```
-
-In the installed app the file lives at
-`~/.config/dev.traiding.terminal/.env`. Defaults to
-`inclusionai/ling-3.2-flash:free`; `AGENT_MODEL` changes it, `AGENT_REASONING=1`
-uses a reasoning model. Read-only: it cannot place, change or cancel orders.
+Defaults to `inclusionai/ling-3.2-flash:free`; `AGENT_MODEL` changes it,
+`AGENT_REASONING=1` uses a reasoning model. Read-only.
 
 ## Verify
 
@@ -79,8 +80,9 @@ bundled SQLite build and WAL mode:
 
 It stores the last symbol/range/tab, fetched candles, account and position
 snapshots, order history, the last quote per symbol and every completed backtest.
-Credentials are **not** in the database. Uninstalling leaves it in place;
-deleting the `storage` folder resets local state and history.
+Credentials are **not** in the database; they live only in the app-config
+`.env` (0600). Uninstalling leaves both in place; deleting the `storage` folder
+resets local state and history.
 
 ## Tools
 
@@ -100,7 +102,7 @@ deleting the `storage` folder resets local state and history.
 | Backtest | SMA crossover on daily bars, return / benchmark / drawdown / win-rate metrics, equity curve, recent trades |
 | Agent | BYOK chat over the account: quotes, bars, positions, orders, news, calendar; read-only tools |
 
-`Ctrl`/`Cmd`+`K` focuses the symbol field. The symbol, chart range and blotter
+`Ctrl`/`Cmd`+`K` opens the symbol selector. The symbol, chart range and blotter
 tab are restored on the next launch.
 
 ## Architecture
@@ -128,11 +130,12 @@ tab are restored on the next launch.
   `apca` client, executes SMA crossover signals on the next open, and stores the
   result JSON in SQLite.
 - **The agent stays in Rust.** `src/agent.rs` streams OpenRouter SSE and runs
-  every tool in-process; the key never reaches the webview.
+  every tool in-process; the key lives in Rust.
 - **Credentials never reach the webview.** The UI sends them once; Rust validates
   them against `/v2/account` and keeps them in `AppState` behind an `RwLock`. Only
-  a masked key (`PKTE…3456`) is ever returned, and Disconnect drops the session.
-  Credentials are never persisted.
+  a masked key (`PKTE…3456`) is ever returned. After a successful connect the key
+  pair is written to the app-config `.env` (0600) for the next launch; Disconnect
+  drops the session but leaves that file. SQLite never stores a secret.
 - **Local data is SQLite.** Preferences, candles, snapshots, orders and quotes
   go to the app-local data directory through `rusqlite`. A database failure
   logs a warning and leaves live trading unaffected.
@@ -150,6 +153,7 @@ tab are restored on the next launch.
 ```
 src/main.rs        thin binary → traiding_lib::run()
 src/lib.rs         window setup, env-credential bootstrap, storage + commands
+src/config.rs      app-config .env merge/write at 0600
 src/commands.rs    IPC handlers for session, account, orders, bars, quotes
 src/stream.rs      IEX quote/trade + order-update websockets → Tauri events
 src/backtest.rs    SMA crossover engine, metrics, equity curve, run command
@@ -174,8 +178,9 @@ install.sh         curl installer
   installer probes for `webkit2gtk-4.1`. The Rust and React code itself is
   portable.
 - US equities only; the symbol parser is scoped to that.
-- Market data uses the IEX feed, which is what the free plan provides. The
-  quote/trade socket is IEX-only; bars are regular-session only.
+- Market data uses the IEX feed, the only realtime equities feed on Alpaca's
+  Basic plan. SIP is 15 minutes delayed on Basic and realtime on Algo Trader
+  Plus. The quote/trade socket is IEX-only; bars are regular-session only.
 - REST polling remains at 15s/20s as a fallback when the socket is offline.
 - Backtesting supports one long-only strategy (SMA crossover), daily bars and
   one symbol at a time. It is not an optimiser or a portfolio simulator.

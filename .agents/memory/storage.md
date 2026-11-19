@@ -48,7 +48,8 @@ idempotent.
 ## Rules
 
 - **No credentials.** The database never stores a key, secret or header. This is
-  enforced by keeping `Session` in memory and by `Storage` having no session API.
+  enforced by keeping `Session` in memory, by `Storage` having no session API,
+  and by routing the app-config `.env` through `src/config.rs`.
 - **Open once.** `lib.rs` opens it during setup before `app.manage(state)`;
   `AppState` holds `Arc<Storage>`, and every command clones that handle.
 - **WAL + 5 s busy timeout.** A checkpoint does not block a reader; a writer
@@ -67,5 +68,5 @@ sqlite3 ~/.local/share/dev.traiding.terminal/storage/traiding.db \
   '.tables' 'PRAGMA user_version' 'SELECT COUNT(*) FROM bars;'
 ```
 
-Deleting the `storage` folder is the supported reset. It does not touch
-credentials (there are none on disk).
+Deleting the `storage` folder is the supported reset. It does not touch the
+app-config `.env`, which holds the Alpaca and OpenRouter keys at mode 0600.

@@ -41,6 +41,7 @@ export function installMockTauri(): void {
 
   const params = new URLSearchParams(window.location.search)
   const screen = params.get('mock') || 'connected'
+  let agentConfigured = screen !== 'agent-unconfigured'
 
   const session = {
     connected: screen !== 'connect',
@@ -221,9 +222,13 @@ export function installMockTauri(): void {
       return { ...session }
     },
     agent_status: () => ({
-      configured: true,
+      configured: agentConfigured,
       model: 'inclusionai/ling-3.2-flash:free',
     }),
+    agent_set_key: () => {
+      agentConfigured = true
+      return { configured: true, model: 'inclusionai/ling-3.2-flash:free' }
+    },
     /**
      * Fake turn: stream text, then a tool call, then the answer.
      *
@@ -314,7 +319,31 @@ export function installMockTauri(): void {
     list_positions: () => positions,
     list_orders: () => orders,
     get_asset: () => ({ symbol: 'AAPL', tradable: true }),
-    list_assets: () => ({ total: 1, count: 1, assets: [] }),
+    list_assets: (args) => {
+      const needle = String(args.q ?? '').toUpperCase()
+      const all = [
+        ['AAPL', 'NASDAQ'],
+        ['AMD', 'NASDAQ'],
+        ['AMZN', 'NASDAQ'],
+        ['GOOGL', 'NASDAQ'],
+        ['META', 'NASDAQ'],
+        ['MSFT', 'NASDAQ'],
+        ['NVDA', 'NASDAQ'],
+        ['QQQ', 'ARCA'],
+        ['SPY', 'ARCA'],
+        ['TSLA', 'NASDAQ'],
+      ].map(([symbol, exchange]) => ({
+        symbol,
+        exchange,
+        class: 'us_equity',
+        tradable: true,
+        fractionable: true,
+        shortable: true,
+        easy_to_borrow: true,
+      }))
+      const assets = all.filter((asset) => !needle || asset.symbol.includes(needle))
+      return { total: all.length, count: assets.length, assets }
+    },
     create_order: () => orders[0],
     cancel_order: (args) => ({
       canceled: typeof args.id === 'string' ? args.id : orders[0].id,
@@ -337,6 +366,7 @@ export function installMockTauri(): void {
       backtests: 0,
     }),
     set_stream_symbol: () => null,
+    feed_status: () => ({ market: 'live', orders: 'live' }),
     run_backtest: (args) => {
       const req = (args.req ?? {}) as {
         symbol?: string

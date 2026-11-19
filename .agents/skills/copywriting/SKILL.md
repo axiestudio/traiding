@@ -35,7 +35,7 @@ it is the feature.**
 | --- | --- |
 | "Please enter your API key ID in the field below" | "Key ID" |
 | "Your position has been successfully closed" | "Position closed" |
-| "Orders route to paper trading. Credentials stay in this Rust process only." | "Paper trading. Keys are never saved." |
+| "Orders route to paper trading. Credentials stay in this Rust process only." | "Paper trading. Stored locally." |
 | "Are you sure you want to cancel this order?" | "Cancel order?" |
 | "No open positions were found in your account" | "No open positions" |
 | "Failed to load chart data for the selected symbol" | "No bars for AAPL" |
@@ -52,9 +52,9 @@ Keep these exact; they are already tightened. Match their register.
 **Connect dialog** — `Connect to Alpaca` / `Paper` / `Live` / `Key ID` / `Secret`
 / `Connect` / `Get keys from your Alpaca dashboard.` / `PK is paper, AK is live.`
 / `Shown once when created.` / `Lost it? Regenerate in Alpaca.` / `Paper key in
-live mode. Switch mode.` / `Live trading. Real money.` / `Keys are never saved.`
+live mode. Switch mode.` / `Live trading. Real money.` / `Stored locally.`
 
-`Keys are never saved.` is the one security claim. Keep it.
+`Stored locally.` is the one security claim. Keep it.
 
 **Top bar** — `Equity` / `Buying power` / `Disconnect` / `market open` /
 `market closed` / `market unknown` / `paper` / `live` / `feed live` /
@@ -66,17 +66,19 @@ live mode. Switch mode.` / `Live trading. Real money.` / `Keys are never saved.`
 
 **Ticket** — `Order ticket` / `Buy` / `Sell` / `Shares` / `Notional` /
 `Quantity` / `Type` / `TIF` / `Limit` / `Stop` / `Day` / `GTC` / `IOC` / `FOK` /
-`Est. cost` / `Est. proceeds` / `Buying power` / `Held` / `Buy AAPL` /
-`Paper trading · keys are never saved.`
+`Est. cost` / `Est. proceeds` / `Buying power` / `Held` / `Buy AAPL`
 
 **Rail / backtest** — `Trade` / `Backtest` / `Range` / `Fast` / `Slow` /
 `Starting cash` / `Run backtest` / `Running…` / `Return` / `Benchmark` /
 `Max drawdown` / `Win rate` / `Trades` / `Equity` / `SMA crossover` /
 `Strategy` / `Buy & hold` / `No runs yet` / `Open`
 
+**Agent** — `OpenRouter key` / `Stored locally.` / `Change key` / `Save` /
+`Positions` / `Orders` / `Quote` / `Ask the agent` / `Send`
+
 **States** — `Loading AAPL…` / `No bars for AAPL` / `Order submitted` /
 `Order canceled` / `Order filled` / `Order rejected` / `Order expired` /
-`Close order sent` / `Connected: paper` / `hover for OHLCV` / `IEX live`
+`Close order sent` / `Connected: paper` / `IEX live`
 
 **Errors** — `Enter a quantity.` / `Enter a notional.` / `Enter a limit price.` /
 `Enter a stop price.` / `Enter starting cash.` / `Fast must be below slow.` /

@@ -287,6 +287,19 @@ querying recent SIP data` fills the chart on a free plan.
 **Fix:** set `feed: Some(Feed::IEX)` in every `bars::ListReqInit` (chart and
 backtester). IEX works on every plan; SIP is paid.
 
+## 27. Feed polls for minutes and quotes look 15 minutes old
+
+**Symptom:** the top bar stays `feed polling`; the chart ends ~15 minutes in the
+past even with a valid free key.
+
+**Cause:** Basic historical REST is limited to data older than 15 minutes; only
+the IEX websocket is real-time. A second process holds the single market-data
+connection (406), so a stale instance can keep the first from live data.
+
+**Fix:** the single-instance plugin; stream trades update the last candle and the
+header price; REST quote polling stops while the market socket is live. Latest
+quotes request `feed=iex`.
+
 ## 25. Agent failure looks like an empty bubble
 
 **Symptom:** a bad key, rate limit or provider outage ends the turn, but the

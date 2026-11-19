@@ -1,9 +1,8 @@
 /**
  * The agent pane.
  *
- * Owns the runtime and the configured/unconfigured gate. When no key is
- * present the composer is replaced by an instruction, because a chat box that
- * cannot answer is worse than a short explanation.
+ * The pane owns the runtime and the key gate. No key means a form, not a dead
+ * end; a configured account gets a compact one-line bar for changing it.
  */
 
 import { useEffect, useState } from 'react'
@@ -15,35 +14,54 @@ import {
 
 import { tradingAdapter } from './adapter'
 import { AgentComposer } from './AgentComposer'
+import { AgentKeyForm } from './AgentKeyForm'
 import { AgentMessage } from './AgentMessage'
 import { getAgentStatus, type AgentStatus } from './ipc'
 
 const SUGGESTIONS = [
-  'What am I holding?',
-  'Quote AAPL',
-  'Summarise my open orders',
+  { label: 'Positions', prompt: 'What am I holding?' },
+  { label: 'Orders', prompt: 'Summarise my open orders' },
+  { label: 'Quote', prompt: 'Quote AAPL' },
 ]
 
-function Thread() {
+interface ThreadProps {
+  editingKey: boolean
+  onChangeKey: () => void
+  onKeySaved: (status: AgentStatus) => void
+  onKeyCancel: () => void
+}
+
+function Thread({ editingKey, onChangeKey, onKeySaved, onKeyCancel }: ThreadProps) {
   return (
     <ThreadPrimitive.Root className="agent-thread">
+      <div className="agent-bar">
+        <span className="agent-bar__provider">OpenRouter</span>
+        {editingKey ? null : (
+          <button type="button" className="agent-bar__key" onClick={onChangeKey}>
+            Change key
+          </button>
+        )}
+      </div>
+
+      {editingKey ? (
+        <div className="agent-key-wrap">
+          <AgentKeyForm onSaved={onKeySaved} onCancel={onKeyCancel} />
+        </div>
+      ) : null}
+
       <ThreadPrimitive.Viewport className="agent-thread__viewport">
         <ThreadPrimitive.Empty>
           <div className="agent-empty">
-            <p className="agent-empty__title">Trading assistant</p>
-            <p className="agent-empty__hint">
-              Ask about quotes, positions or orders. Answers use this account.
-            </p>
             <div className="agent-empty__chips">
-              {SUGGESTIONS.map((text) => (
+              {SUGGESTIONS.map(({ label, prompt }) => (
                 <ThreadPrimitive.Suggestion
-                  key={text}
-                  prompt={text}
+                  key={prompt}
+                  prompt={prompt}
                   method="replace"
                   autoSend
                   className="agent-chip"
                 >
-                  {text}
+                  {label}
                 </ThreadPrimitive.Suggestion>
               ))}
             </div>
@@ -60,6 +78,7 @@ function Thread() {
 
 export function AgentPanel() {
   const [status, setStatus] = useState<AgentStatus | null>(null)
+  const [editingKey, setEditingKey] = useState(false)
   const runtime = useLocalRuntime(tradingAdapter)
 
   useEffect(() => {
@@ -84,13 +103,8 @@ export function AgentPanel() {
 
   if (!status.configured) {
     return (
-      <div className="agent-panel">
-        <div className="agent-empty">
-          <p className="agent-empty__title">No model key</p>
-          <p className="agent-empty__hint">
-Add OPENROUTER_API_KEY to ~/.config/dev.traiding.terminal/.env
-          </p>
-        </div>
+      <div className="agent-panel agent-panel--setup">
+        <AgentKeyForm onSaved={setStatus} />
       </div>
     )
   }
@@ -98,7 +112,15 @@ Add OPENROUTER_API_KEY to ~/.config/dev.traiding.terminal/.env
   return (
     <div className="agent-panel">
       <AssistantRuntimeProvider runtime={runtime}>
-        <Thread />
+        <Thread
+          editingKey={editingKey}
+          onChangeKey={() => setEditingKey((open) => !open)}
+          onKeySaved={(next) => {
+            setStatus(next)
+            setEditingKey(false)
+          }}
+          onKeyCancel={() => setEditingKey(false)}
+        />
       </AssistantRuntimeProvider>
     </div>
   )

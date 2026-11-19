@@ -7,6 +7,6 @@
  */
 
 export { AgentPanel } from './AgentPanel'
-export { getAgentStatus, agentChat, agentError } from './ipc'
+export { getAgentStatus, setAgentKey, agentChat, agentError } from './ipc'
 export type { AgentStatus, StreamEvent, WireMessage, ChatRequest } from './ipc'
 export { tradingAdapter } from './adapter'

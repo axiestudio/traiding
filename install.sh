@@ -68,7 +68,7 @@ Options:
 
 Environment:
   TRAIDING_REPO    GitHub repo to download from (default: $REPO)
-  TRAIDING_VERSION Pin a release tag, e.g. v0.1.0
+  TRAIDING_VERSION Pin a release tag, e.g. v0.2.0
 EOF
 }
 
@@ -101,9 +101,10 @@ if [ "$ACTION" = "uninstall" ]; then
   rmdir "$DATA_DIR/$APP" 2>/dev/null || true
   ok "removed"
   say ""
-  say "${DIM}Credentials were never written to disk. Local history remains at:${RESET}"
+  say "${DIM}Local history remains at:${RESET}"
   say "${DIM}  $APP_DATA/storage/traiding.db${RESET}"
-  say "${DIM}Delete that folder to reset preferences and history.${RESET}"
+  say "${DIM}Credentials live in $HOME/.config/dev.traiding.terminal/.env (0600).${RESET}"
+  say "${DIM}Delete that folder to reset preferences, history and keys.${RESET}"
   exit 0
 fi
 
@@ -220,9 +221,19 @@ build_from_source() {
 # ---------------------------------------------------------------------------
 
 latest_tag() {
-  curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null |
+  tag=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null |
     sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' |
-    head -1
+    head -1)
+
+  # The API is rate-limited for anonymous callers. The release page redirect
+  # still names the tag, so use it as a fallback.
+  if [ -z "$tag" ]; then
+    tag=$(curl -fsSI "https://github.com/$REPO/releases/latest" 2>/dev/null |
+      sed -n 's/^[Ll]ocation: .*\/tag\/\([^[:space:]]*\).*/\1/p' |
+      tr -d '\r' | head -1)
+  fi
+
+  printf '%s' "$tag"
 }
 
 download_appimage() {
@@ -238,7 +249,7 @@ download_appimage() {
   tag="${TRAIDING_VERSION:-$(latest_tag || true)}"
   if [ -z "${tag:-}" ]; then
     die "could not determine the latest release of $REPO.
-     Set TRAIDING_VERSION=v0.1.0, or use --from-source."
+     Set TRAIDING_VERSION, or clone the repo and run install.sh --from-source."
   fi
   say "${DIM}release $tag, architecture $appimage_arch${RESET}"
 
@@ -328,7 +339,7 @@ say "  Run it:   ${BOLD}$APP${RESET}"
 say "  Local:    $APP_DATA/storage/traiding.db"
 say "  Remove:   curl -fsSL https://raw.githubusercontent.com/$REPO/main/install.sh | sh -s -- --uninstall --prefix $PREFIX"
 say ""
-say "${DIM}Credentials stay in memory and are never written to disk.${RESET}"
+say "${DIM}Credentials are stored in the app-config .env (0600).${RESET}"
 say "${DIM}Preferences and market history stay in the app-local database.${RESET}"
 
 warn_path

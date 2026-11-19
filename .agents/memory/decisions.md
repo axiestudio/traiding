@@ -46,7 +46,8 @@ SQLite 3.54 into the binary (no system `libsqlite3` dependency); see
 
 Rejected: JSON/CSV files (no atomic multi-table writes or indexed queries),
 Postgres (a server violates the single-binary rule), webview storage (history
-would leave Rust). Credentials are never stored.
+would leave Rust). Credentials are never stored in the database; the Alpaca
+pair lives only in the app-config `.env` at mode 0600.
 
 ## `num_decimal::Num` for prices
 

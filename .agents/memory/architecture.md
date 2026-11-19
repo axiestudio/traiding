@@ -112,6 +112,7 @@ needs data, it goes through `api.ts` or it does not get data.
 | `src/backtest.rs` | SMA signals, metrics, equity curve | place orders |
 | `src/state.rs` | session lifecycle, stream handles, asset cache, key masking, storage handle | expose raw secrets |
 | `src/storage.rs` | SQLite schema, migrations, snapshot writes | store credentials |
+| `src/config.rs` | app-config `.env` merge/write at 0600 | touch SQLite or the webview |
 | `src/error.rs` | `AppError` → `String`, upstream message unwrapping | log secrets |
 
 ## Session lifecycle
@@ -122,8 +123,10 @@ needs data, it goes through `api.ts` or it does not get data.
 3. `connect` validates against `/v2/account` **before** storing anything.
 4. Success stores `Arc<Session>` in `AppState`; UI receives `{connected, paper,
    key_id (masked), base_url}`.
-5. `disconnect` clears the lock. Credentials are not persisted; UI preferences
-   and market data are, in SQLite.
+5. A successful connect writes the Alpaca pair to the app-config `.env` (0600);
+   the next launch reads it in `load_config_env` and pre-authenticates.
+   `disconnect` clears the session but leaves that file. UI preferences and
+   market data are persisted in SQLite; no secret is.
 
 ## Realtime streams
 
@@ -131,6 +134,10 @@ needs data, it goes through `api.ts` or it does not get data.
 symbol effect calls `set_stream_symbol`, which starts or repoints the IEX quote/
 trade socket. Both loops live in `src/stream.rs`, emit `stream:status`, and
 reconnect with 2–30 s backoff. Disconnect aborts both tasks.
+
+IEX is the only realtime equities feed on Alpaca's Basic plan. SIP is 15 minutes
+delayed on Basic and realtime on Algo Trader Plus, so every bars and latest-quote
+request pins `feed=iex`; the websocket is `RealtimeData<IEX>`.
 
 | Event | Payload |
 | --- | --- |
@@ -156,8 +163,8 @@ primary feed; polling continues so a dropped socket never blanks the dashboard.
 ## Asset cache
 
 `/v2/assets` returns ~11k rows. `AppState` caches them for **1 hour**, guarded by
-an `RwLock`. `list_assets(refresh: true)` forces a refetch. The UI does not
-currently use this; the commands exist for autocomplete later.
+an `RwLock`. `list_assets(refresh: true)` forces a refetch. The chart's symbol
+picker searches this list through `list_assets`; the cache keeps that cheap.
 
 ## Local storage
 

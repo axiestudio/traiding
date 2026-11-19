@@ -6,8 +6,8 @@
 //! so every invocation comes from Rust through this module.
 //!
 //! Credentials are passed as environment variables on the child process only.
-//! They are never written to disk, never logged, and never returned to the
-//! caller — the same boundary the rest of the app holds.
+//! This module never writes, logs or returns them; the child sees them for the
+//! duration of one request.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;

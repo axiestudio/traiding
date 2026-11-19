@@ -1,13 +1,13 @@
 //! BYOK chat agent.
 //!
-//! The agent talks to OpenRouter from inside the Rust process. The API key is
-//! read from the environment, never stored in SQLite and never sent to the
-//! webview — the UI only ever sees a boolean saying whether a key is present.
+//! The agent talks to OpenRouter from inside the Rust process. The key is held
+//! there and written only to the app-config `.env` when the user saves it in
+//! the Agent pane; SQLite never sees it and the UI never reads it back.
 //!
 //! Tools reuse the same `apca` client as the rest of the terminal, so what the
 //! agent reads is exactly what the panes show.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock, RwLock};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -22,6 +22,8 @@ type Ipc<T> = Result<T, String>;
 
 const OPENROUTER_URL: &str = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL: &str = "inclusionai/ling-3.2-flash:free";
+const OPENROUTER_KEY_URL: &str = "https://openrouter.ai/api/v1/key";
+static RUNTIME_KEY: OnceLock<RwLock<Option<String>>> = OnceLock::new();
 /// Free models allow tool loops, but a runaway loop must still terminate.
 const MAX_TOOL_ROUNDS: usize = 4;
 /// A stalled provider connection must not leave the composer busy forever.
@@ -313,7 +315,45 @@ fn tool_specs() -> serde_json::Value {
 pub async fn agent_status() -> Ipc<AgentStatus> {
     Ok(AgentStatus {
         configured: key().is_some(),
-        model: std::env::var("AGENT_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_string()),
+        model: model(),
+    })
+}
+
+/// Validate and save a key from the Agent pane.
+///
+/// The key is checked against OpenRouter before it replaces the current one,
+/// so a typo fails here instead of on the first chat turn.
+#[tauri::command]
+pub async fn agent_set_key(app: tauri::AppHandle, key: String) -> Ipc<AgentStatus> {
+    let key = key.trim().to_string();
+    if key.is_empty() {
+        return Err("Paste an OpenRouter key".to_string());
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(net)?;
+    let response = client
+        .get(OPENROUTER_KEY_URL)
+        .bearer_auth(&key)
+        .send()
+        .await
+        .map_err(net)?;
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let raw = response.text().await.unwrap_or_default();
+        return Err(provider_error(status, &raw));
+    }
+
+    save_key(&app, &key)?;
+    *runtime_key()
+        .write()
+        .map_err(|_| "key store is locked".to_string())? = Some(key);
+
+    Ok(AgentStatus {
+        configured: true,
+        model: model(),
     })
 }
 
@@ -328,12 +368,8 @@ pub async fn agent_chat(
     req: AgentChatReq,
     on_event: Channel<StreamEvent>,
 ) -> Ipc<()> {
-    let key = key().ok_or_else(|| {
-        "no OpenRouter key configured — set OPENROUTER_API_KEY in .env and restart".to_string()
-    })?;
-    let model = req.model.unwrap_or_else(|| {
-        std::env::var("AGENT_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_string())
-    });
+    let key = key().ok_or_else(|| "Add an OpenRouter key in the Agent tab".to_string())?;
+    let model = req.model.unwrap_or_else(model);
 
     let http = reqwest::Client::builder()
         .timeout(REQUEST_TIMEOUT)
@@ -836,12 +872,31 @@ fn system_prompt(paper: Option<bool>) -> String {
     )
 }
 
-/// Read the key without ever logging or returning it.
+fn runtime_key() -> &'static RwLock<Option<String>> {
+    RUNTIME_KEY.get_or_init(|| RwLock::new(None))
+}
+
+/// Read the key without ever logging or returning it to the webview.
 fn key() -> Option<String> {
+    if let Ok(stored) = runtime_key().read()
+        && let Some(value) = stored.as_ref()
+    {
+        return Some(value.clone());
+    }
     std::env::var("OPENROUTER_API_KEY")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+fn model() -> String {
+    std::env::var("AGENT_MODEL").unwrap_or_else(|_| DEFAULT_MODEL.to_string())
+}
+
+/// Persist the key to the app-config `.env` (mode 0600), preserving any other
+/// lines the user keeps there.
+fn save_key(app: &tauri::AppHandle, key: &str) -> Ipc<()> {
+    crate::config::save_env(app, &[("OPENROUTER_API_KEY", key)])
 }
 
 /// Reasoning is off unless `AGENT_REASONING=1`.

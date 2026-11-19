@@ -191,6 +191,11 @@ export interface StreamStatus {
   state: 'connecting' | 'live' | 'offline'
 }
 
+export interface FeedStatus {
+  market: StreamStatus['state']
+  orders: StreamStatus['state']
+}
+
 export interface OrderUpdateEvent {
   event: string
   order: Order
@@ -300,6 +305,8 @@ export const api = {
     invoke<BarSeries>('get_bars', { symbol, timeframe, days }),
 
   getQuote: (symbol: string) => invoke<Quote>('get_quote', { symbol }),
+
+  getFeedStatus: () => invoke<FeedStatus>('feed_status'),
 
   setStreamSymbol: (symbol: string) => invoke<void>('set_stream_symbol', { symbol }),
 

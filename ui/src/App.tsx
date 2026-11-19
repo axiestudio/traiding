@@ -40,6 +40,53 @@ type FeedState = { market: StreamStatus['state']; orders: StreamStatus['state'] 
 const FEED_OFF: FeedState = { market: 'offline', orders: 'offline' }
 const FEED_CONNECTING: FeedState = { market: 'connecting', orders: 'connecting' }
 
+const BAR_STEP: Record<RangeId, number> = {
+  '1D': 60,
+  '1M': 3600,
+  '6M': 86400,
+  '1Y': 86400,
+  '5Y': 86400,
+}
+
+/** Fold one live IEX trade into the candle for its minute, hour or day. */
+function applyTrade(prev: Bar[], trade: StreamTrade, range: RangeId): Bar[] {
+  const last = prev[prev.length - 1]
+  if (!last) return prev
+
+  const seconds = Math.floor(Date.parse(trade.time) / 1000)
+  if (!Number.isFinite(seconds)) return prev
+
+  const step = BAR_STEP[range]
+  const bucket = Math.floor(seconds / step) * step
+  const lastBucket = Math.floor(last.time / step) * step
+  if (bucket < lastBucket) return prev
+
+  if (bucket === lastBucket) {
+    return [
+      ...prev.slice(0, -1),
+      {
+        ...last,
+        close: trade.price,
+        high: Math.max(last.high, trade.price),
+        low: Math.min(last.low, trade.price),
+        volume: last.volume + trade.size,
+      },
+    ]
+  }
+
+  return [
+    ...prev,
+    {
+      time: bucket,
+      open: trade.price,
+      high: trade.price,
+      low: trade.price,
+      close: trade.price,
+      volume: trade.size,
+    },
+  ]
+}
+
 export function App() {
   const toast = useToast()
 
@@ -48,7 +95,9 @@ export function App() {
   const [symbol, setSymbol] = useState('AAPL')
   const [range, setRange] = useState<RangeId>('6M')
   const [bars, setBars] = useState<Bar[]>([])
+  const [chartVersion, setChartVersion] = useState(0)
   const [quote, setQuote] = useState<Quote | null>(null)
+  const [lastTrade, setLastTrade] = useState<{ price: number; time: string } | null>(null)
   const [chartLoading, setChartLoading] = useState(false)
   const [chartError, setChartError] = useState<string | null>(null)
   const [blotterTab, setBlotterTab] = useState<BlotterTab>('positions')
@@ -58,8 +107,9 @@ export function App() {
   const [cancelingId, setCancelingId] = useState<string | null>(null)
 
   const connected = session?.connected === true
-  const feedLive = feed.market === 'live' || feed.orders === 'live'
+  const feedLive = feed.market === 'live'
   const symbolRef = useRef(symbol)
+  const rangeRef = useRef(range)
   const pendingQuoteRef = useRef<StreamQuote | null>(null)
   const pendingTradeRef = useRef<StreamTrade | null>(null)
   const liveTimerRef = useRef<number | null>(null)
@@ -79,9 +129,11 @@ export function App() {
   const positions = overview?.positions?.ok ? (overview.positions.data ?? []) : []
   const orders = overview?.orders?.ok ? (overview.orders.data ?? []) : []
 
-  const lastPrice = bars.length
-    ? bars[bars.length - 1].close
-    : quote?.mid ?? null
+  // Prefer a live trade, then a two-sided live quote, then the last close. A
+  // one-sided after-hours quote must not pull the header to the bid.
+  const quotePrice = quote && quote.bid > 0 && quote.ask > 0 ? quote.mid : null
+  const lastPrice =
+    lastTrade?.price ?? quotePrice ?? (bars.length ? bars[bars.length - 1].close : null)
 
   // -------------------------------------------------------------------------
   // Loaders
@@ -112,6 +164,8 @@ export function App() {
       const series = await api.getBars(targetSymbol, spec.timeframe, spec.days)
       if (requestId !== chartRequestRef.current) return // superseded
       setBars(series.bars)
+      // Fit only when a load replaces the series, never on a live tick.
+      setChartVersion((version) => version + 1)
     } catch (err) {
       if (requestId !== chartRequestRef.current) return
       setBars([])
@@ -123,10 +177,11 @@ export function App() {
 
   const loadQuote = useCallback(async (targetSymbol: string) => {
     try {
-      setQuote(await api.getQuote(targetSymbol))
+      const next = await api.getQuote(targetSymbol)
+      if (targetSymbol === symbolRef.current) setQuote(next)
     } catch {
       // Quotes are IEX-only and can be missing for thin symbols; blank them.
-      setQuote(null)
+      if (targetSymbol === symbolRef.current) setQuote(null)
     }
   }, [])
 
@@ -205,6 +260,7 @@ export function App() {
     setOverview(null)
     setBars([])
     setQuote(null)
+    setLastTrade(null)
     setChartError(null)
     setFeed(FEED_OFF)
   }
@@ -225,6 +281,14 @@ export function App() {
 
   useEffect(() => {
     symbolRef.current = symbol
+    rangeRef.current = range
+    setLastTrade(null)
+  }, [symbol, range])
+
+  // A quote belongs to one symbol; never show the previous one while the new
+  // REST quote or stream frame is in flight.
+  useEffect(() => {
+    setQuote(null)
   }, [symbol])
 
   // Point the Rust feed at the chart's symbol. It is a no-op while detached.
@@ -263,19 +327,8 @@ export function App() {
       }
 
       if (trade && trade.symbol === symbolRef.current) {
-        setBars((prev) => {
-          if (!prev.length) return prev
-          const last = prev[prev.length - 1]
-          return [
-            ...prev.slice(0, -1),
-            {
-              ...last,
-              close: trade.price,
-              high: Math.max(last.high, trade.price),
-              low: Math.min(last.low, trade.price),
-            },
-          ]
-        })
+        setLastTrade({ price: trade.price, time: trade.time })
+        setBars((prev) => applyTrade(prev, trade, rangeRef.current))
       }
     }
 
@@ -347,17 +400,41 @@ export function App() {
     }
   }, [connected, loadOverview, toast])
 
+  // Events can fire before the listener above is registered; read the state
+  // directly so a missed frame cannot leave the badge on "polling".
+  useEffect(() => {
+    if (!connected) return
+    let cancelled = false
+    const sync = () => {
+      api
+        .getFeedStatus()
+        .then((next) => {
+          if (!cancelled) setFeed(next)
+        })
+        .catch(() => {})
+    }
+    void sync()
+    const timer = window.setInterval(sync, 3000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [connected])
+
   // Poll the account while connected. Chart data refreshes on user action, so
   // the two loops together stay well inside Alpaca's rate limits.
   useEffect(() => {
     if (!connected) return
     const overviewTimer = setInterval(() => void loadOverview(), OVERVIEW_INTERVAL_MS)
-    const quoteTimer = setInterval(() => void loadQuote(symbol), QUOTE_INTERVAL_MS)
+    // REST quotes on Basic are at least 15 minutes old. Once the IEX socket is
+    // live it is the only quote source; polling resumes if the socket drops.
+    const quoteTimer =
+      feed.market === 'live' ? null : setInterval(() => void loadQuote(symbol), QUOTE_INTERVAL_MS)
     return () => {
       clearInterval(overviewTimer)
-      clearInterval(quoteTimer)
+      if (quoteTimer !== null) clearInterval(quoteTimer)
     }
-  }, [connected, symbol, loadOverview, loadQuote])
+  }, [connected, symbol, feed.market, loadOverview, loadQuote])
 
   // -------------------------------------------------------------------------
   // Actions
@@ -399,11 +476,9 @@ export function App() {
     function onKeyDown(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        const input = document.querySelector<HTMLInputElement>(
-          '.chart-head__symbol input',
-        )
-        input?.focus()
-        input?.select()
+        const picker = document.querySelector<HTMLButtonElement>('[data-symbol-picker]')
+        picker?.focus()
+        picker?.click()
       }
     }
 
@@ -438,6 +513,8 @@ export function App() {
             range={range}
             bars={bars}
             quote={quote}
+            price={lastPrice}
+            resetKey={String(chartVersion)}
             loading={chartLoading}
             error={chartError}
             isLive={feed.market === 'live'}
@@ -487,7 +564,6 @@ export function App() {
                 account={account}
                 positions={positions}
                 lastPrice={lastPrice}
-                paper={activeSession.paper}
                 onSubmitted={orderSubmitted}
               />
             </div>

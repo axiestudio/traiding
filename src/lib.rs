@@ -7,6 +7,7 @@ mod agent;
 mod backtest;
 mod cli;
 mod commands;
+mod config;
 mod error;
 mod state;
 mod storage;
@@ -32,6 +33,13 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            // A second process would fight the first for the one Alpaca
+            // market-data socket, so raise the window that already has it.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+        }))
         .setup(|app| {
             let state = Arc::new(AppState::new());
             open_storage(app.handle(), &state);
@@ -60,12 +68,14 @@ pub fn run() {
             commands::get_bars,
             commands::get_quote,
             commands::set_stream_symbol,
+            commands::feed_status,
             backtest::run_backtest,
             commands::get_overview,
             commands::get_ui_state,
             commands::save_ui_state,
             commands::get_storage_info,
             agent::agent_status,
+            agent::agent_set_key,
             agent::agent_chat,
         ])
         .run(tauri::generate_context!())
@@ -118,7 +128,7 @@ fn log_cli_location(app: &tauri::AppHandle) {
 ///
 /// The AppImage runs with its mount as the working directory, so a project
 /// `.env` is never found. This gives installed builds a stable place for the
-/// OpenRouter key (the app itself still writes no secrets).
+/// Alpaca pair and OpenRouter key that Rust writes at mode 0600.
 fn load_config_env(app: &tauri::AppHandle) {
     if let Ok(dir) = app.path().app_config_dir() {
         let _ = dotenvy::from_path(dir.join(".env"));

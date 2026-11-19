@@ -12,7 +12,7 @@ export function AgentComposer() {
     <ComposerPrimitive.Root className="agent-composer">
       <ComposerPrimitive.Input
         className="agent-composer__input"
-        placeholder="Ask about a symbol, position or order…"
+        placeholder="Ask the agent"
         aria-label="Message the agent"
         rows={2}
       />
