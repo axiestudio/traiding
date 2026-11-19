@@ -1,0 +1,213 @@
+#!/usr/bin/env node
+/**
+ * ctx7 — a small Context7 CLI for this repo.
+ *
+ * Context7 serves up-to-date library documentation that a model would
+ * otherwise have to remember. This wrapper keeps the commands short enough to
+ * use while working:
+ *
+ *   ctx7 libs rust
+ *   ctx7 docs /rusqlite/rusqlite --topic "transactions" --tokens 3000
+ *   ctx7 "How do I stream a response with Axum?"
+ *
+ * The API key is intentionally hardcoded for local, single-user use. Set
+ * CONTEXT7_API_KEY to override it. Rotate the key before sharing this file.
+ */
+
+const HARDCODED_API_KEY = 'ctx7sk-463e632d-996a-4444-8f7e-ed31e3ce6c4c'
+const API_KEY = (process.env.CONTEXT7_API_KEY || HARDCODED_API_KEY).trim()
+const BASE = 'https://context7.com/api/v1'
+const TIMEOUT_MS = 30_000
+const USER_AGENT = 'traiding-ctx7/1.0'
+
+const HELP = `ctx7 — Context7 docs from the terminal
+
+Usage
+  ctx7 search <query> [--library <name>] [--version <version>] [--json]
+  ctx7 libs <name> [--limit <n>] [--json]
+  ctx7 docs <library-id> [--topic <topic>] [--tokens <n>] [--json]
+  ctx7 <query>
+
+Examples
+  ctx7 libs rusqlite
+  ctx7 docs /rusqlite/rusqlite --topic "open a connection" --tokens 2000
+  ctx7 "How do I stream a response with Axum?"
+
+Notes
+  CONTEXT7_API_KEY overrides the built-in key.
+  --json prints the raw response for scripts.
+`
+
+function usage() {
+  process.stdout.write(HELP)
+  process.exit(0)
+}
+
+function fail(message) {
+  process.stderr.write(`ctx7: ${message}\n`)
+  process.exit(1)
+}
+
+function parseArgs(argv) {
+  const positional = []
+  const flags = { json: false }
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index]
+    if (arg === '--json') {
+      flags.json = true
+    } else if (arg === '--help' || arg === '-h') {
+      flags.help = true
+    } else if (arg.startsWith('--')) {
+      const key = arg.slice(2)
+      const value = argv[index + 1]
+      if (!value || value.startsWith('--')) {
+        fail(`missing value for --${key}`)
+      }
+      flags[key] = value
+      index += 1
+    } else {
+      positional.push(arg)
+    }
+  }
+
+  return { positional, flags }
+}
+
+async function request(path, params = {}) {
+  const url = new URL(`${BASE}${path}`)
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, String(value))
+    }
+  }
+
+  let response
+  try {
+    response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        Accept: 'application/json, text/plain;q=0.9',
+        'User-Agent': USER_AGENT,
+      },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+  } catch (error) {
+    fail(`request failed: ${error?.message || error}`)
+  }
+
+  const body = await response.text()
+  if (!response.ok) {
+    const detail = body.replace(/\s+/g, ' ').trim().slice(0, 300)
+    fail(`Context7 returned ${response.status}${detail ? `: ${detail}` : ''}`)
+  }
+  return body
+}
+
+function json(text) {
+  try {
+    return JSON.parse(text)
+  } catch {
+    fail(`expected JSON, got: ${text.slice(0, 200)}`)
+  }
+}
+
+function printJson(value) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`)
+}
+
+function describe(result, index) {
+  const title = result.title || result.name || 'Untitled'
+  const lines = [`${index}. ${result.id}  ${title}`]
+  if (result.description) {
+    const description = result.description.replace(/\s+/g, ' ').trim()
+    lines.push(`   ${description.length > 160 ? `${description.slice(0, 157)}…` : description}`)
+  }
+
+  const details = []
+  if (result.totalSnippets) details.push(`${result.totalSnippets} snippets`)
+  if (result.totalTokens) details.push(`${result.totalTokens.toLocaleString('en-US')} tokens`)
+  if (result.versions?.length) details.push(`versions ${result.versions.slice(0, 4).join(', ')}`)
+  if (details.length) lines.push(`   ${details.join(' · ')}`)
+
+  return lines.join('\n')
+}
+
+async function search(query, flags, limit = 10) {
+  if (!query) fail('a search query is required')
+  const payload = json(
+    await request('/search', {
+      query,
+      libraryName: flags.library,
+      version: flags.version,
+    }),
+  )
+
+  if (flags.json) {
+    printJson(payload)
+    return
+  }
+
+  const results = Array.isArray(payload.results) ? payload.results : []
+  if (results.length === 0) {
+    process.stdout.write('No libraries found.\n')
+    return
+  }
+
+  // A newline between results keeps long snippets readable in a terminal.
+  process.stdout.write(
+    `${results
+      .slice(0, limit)
+      .map((result, index) => describe(result, index + 1))
+      .join('\n\n')}\n`,
+  )
+}
+
+async function libraries(name, flags) {
+  if (!name) fail('a library name is required')
+  await search(name, { ...flags, library: name }, Number(flags.limit) || 5)
+}
+
+async function docs(libraryId, flags) {
+  if (!libraryId) fail('a Context7 library id is required')
+  if (/^https?:\/\//.test(libraryId)) {
+    fail('pass the library id (for example /rusqlite/rusqlite), not a URL')
+  }
+
+  const path = `/${libraryId.replace(/^\/+/, '')}`
+  const body = await request(path, {
+    topic: flags.topic || flags.query,
+    tokens: flags.tokens || 5000,
+    type: flags.json ? 'json' : 'txt',
+  })
+
+  if (flags.json) {
+    printJson(json(body))
+    return
+  }
+
+  process.stdout.write(body.endsWith('\n') ? body : `${body}\n`)
+}
+
+async function main() {
+  const { positional, flags } = parseArgs(process.argv.slice(2))
+  if (flags.help || positional.length === 0) usage()
+
+  const [command, ...rest] = positional
+  switch (command) {
+    case 'search':
+      await search(rest.join(' ').trim(), flags)
+      break
+    case 'libs':
+      await libraries(rest.join(' ').trim(), flags)
+      break
+    case 'docs':
+      await docs(rest[0], flags)
+      break
+    default:
+      // `ctx7 <query>` is the fast path for a one-off search.
+      await search(positional.join(' ').trim(), flags)
+  }
+}
+
+main().catch((error) => fail(error?.stack || String(error)))

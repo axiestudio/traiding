@@ -1,0 +1,10 @@
+/target
+/node_modules
+/ui/node_modules
+/ui/dist
+/gen
+/binaries
+/temp
+.env
+.env.*
+!.env.example

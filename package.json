@@ -1,0 +1,17 @@
+{
+  "name": "traiding",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Alpaca trading terminal — a single-binary desktop app",
+  "scripts": {
+    "dev": "npm run cli:fetch && tauri dev",
+    "build": "npm run cli:fetch && tauri build",
+    "cli:fetch": "sh tools/fetch-alpaca-cli.sh",
+    "ui:dev": "npm --prefix ui run dev",
+    "ui:build": "npm --prefix ui run build",
+    "typecheck": "npm --prefix ui run typecheck"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0"
+  }
+}

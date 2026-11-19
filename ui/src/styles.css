@@ -1,0 +1,969 @@
+/* ---------------------------------------------------------------------------
+   traiding — application styles
+
+   Astryx supplies every control, surface and type ramp. This file only covers
+   what a design system cannot know about: the fixed terminal grid, monospace
+   tabular numerics for prices, and the green/red P&L vocabulary.
+   --------------------------------------------------------------------------- */
+
+@import '@astryxdesign/core/reset.css';
+@import '@astryxdesign/core/astryx.css';
+@import '@astryxdesign/theme-neutral/theme.css';
+
+:root {
+  --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --up: #22c55e;
+  --down: #ef4444;
+  --up-dim: rgba(34, 197, 94, 0.12);
+  --down-dim: rgba(239, 68, 68, 0.12);
+  --hairline: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  /* The terminal is a dense, fixed-layout surface: no rubber-banding. */
+  overscroll-behavior: none;
+  user-select: none;
+
+  /* Astryx's reset deliberately leaves the page background to the app. Without
+     this the webview paints transparent, so the native window shows through and
+     translucent controls read as white pills against it. */
+  background: var(--color-background-body);
+  color: var(--color-text-primary);
+}
+
+/* Chrome-style window dragging is handled by the OS titlebar, so the grid
+   starts at the top of the client area. */
+.app-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Top bar
+   -------------------------------------------------------------------------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--hairline);
+  flex: 0 0 auto;
+  min-height: 52px;
+}
+
+.topbar__brand {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
+.topbar__brand span {
+  opacity: 0.45;
+}
+
+.topbar__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 96px;
+  text-align: right;
+  line-height: 1.15;
+}
+
+.topbar__metric > :first-child {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.topbar__metric > :last-child {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.topbar__spacer {
+  flex: 1;
+}
+
+.topbar__status,
+.topbar__feed {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.topbar__feed {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* --------------------------------------------------------------------------
+   Terminal grid: chart over blotter on the left, ticket on the right
+   -------------------------------------------------------------------------- */
+
+.terminal {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-rows: minmax(0, 1fr) 248px;
+  grid-template-areas:
+    'chart ticket'
+    'blotter ticket';
+}
+
+.pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pane--chart {
+  grid-area: chart;
+  border-right: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.pane--blotter {
+  grid-area: blotter;
+  border-right: 1px solid var(--hairline);
+}
+
+.pane--ticket {
+  grid-area: ticket;
+  overflow: hidden;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rail__tabs {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.rail__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.rail__hide {
+  display: none;
+}
+
+/* The agent pane fills the rail and pins its composer to the bottom, so its
+   wrapper has to carry the height the panel's `height: 100%` resolves against. */
+.rail__pane {
+  height: 100%;
+}
+
+/* The window minimum is 1080x720, so the two-column grid is the narrowest
+   state the app can reach. Stacking the panes at that size leaves the chart
+   with only ~28px of height; keep the fixed terminal grid instead. */
+
+/* --------------------------------------------------------------------------
+   Chart pane
+   -------------------------------------------------------------------------- */
+
+.chart-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.chart-head__symbol {
+  width: 132px;
+  flex: 0 0 auto;
+}
+
+.chart-head__price {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.chart-head__last {
+  font-family: var(--mono);
+  font-size: 23px;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-head__ranges {
+  margin-left: auto;
+}
+
+.quote-strip {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 6px 16px;
+  border-top: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 11px;
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+
+.quote-strip__pair {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.quote-strip__pair b {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.quote-strip__pair--bid b {
+  color: var(--up);
+}
+
+.quote-strip__pair--ask b {
+  color: var(--down);
+}
+
+.quote-strip__feed {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.quote-strip__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--up);
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.quote-strip__live i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--up);
+  box-shadow: 0 0 0 3px var(--up-dim);
+  animation: feed-pulse 2s ease-out infinite;
+}
+
+@keyframes feed-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quote-strip__live i { animation: none; }
+}
+
+.quote-strip__time {
+  margin-left: auto;
+  opacity: 0.7;
+}
+
+.chart-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.chart-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* Overlays on top of the canvas: never intercept the crosshair. */
+.chart-legend {
+  position: absolute;
+  top: 6px;
+  left: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-background-surface) 78%, transparent);
+  backdrop-filter: blur(6px);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.chart-legend__symbol {
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.chart-legend__pair {
+  opacity: 0.85;
+}
+
+.chart-legend__pair em {
+  font-style: normal;
+  opacity: 0.5;
+  margin-right: 2px;
+}
+
+.chart-legend__change {
+  font-weight: 650;
+  opacity: 1;
+}
+
+.chart-legend--idle .chart-legend__hint {
+  opacity: 0.45;
+  font-size: 10.5px;
+}
+
+.chart-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  font-size: 12.5px;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   Blotter
+   -------------------------------------------------------------------------- */
+
+.blotter {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.blotter__tabs {
+  padding-inline: 8px;
+  flex: 0 0 auto;
+}
+
+.blotter__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Astryx renders the sticky header, but a scrolling pane needs the header to
+   stay pinned to the top of this specific container. */
+.blotter__body thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--color-background-surface) 92%, transparent);
+}
+
+.blotter__empty {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 12.5px;
+  opacity: 0.55;
+}
+
+/* --------------------------------------------------------------------------
+   Numeric cells
+   -------------------------------------------------------------------------- */
+
+.cell-num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cell-symbol {
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.cell-sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.up {
+  color: var(--up);
+}
+
+.down {
+  color: var(--down);
+}
+
+.flat {
+  opacity: 0.6;
+}
+
+/* --------------------------------------------------------------------------
+   Order ticket
+   -------------------------------------------------------------------------- */
+
+.ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.ticket__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.ticket__symbol {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  opacity: 1;
+}
+
+.ticket__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: end;
+}
+
+.ticket__row > * {
+  min-width: 0;
+}
+
+.ticket__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 11px;
+  border-radius: 7px;
+  border: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ticket__summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ticket__summary-row > :first-child {
+  opacity: 0.55;
+}
+
+.ticket__summary-row > :last-child {
+  font-weight: 650;
+}
+
+.ticket__hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.ticket__hint a {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ticket__error {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--down);
+}
+
+/* --------------------------------------------------------------------------
+   Backtest rail
+   -------------------------------------------------------------------------- */
+
+.backtest {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.backtest__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.backtest__symbol {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  opacity: 1;
+}
+
+.backtest__strategy {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.backtest__strategy > span {
+  padding-bottom: 8px;
+}
+
+.backtest__meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  opacity: 0.55;
+}
+
+.backtest__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  overflow: hidden;
+  border-top: 1px solid var(--hairline);
+  border-left: 1px solid var(--hairline);
+  border-radius: 7px;
+}
+
+.backtest__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px;
+  border-right: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.backtest__metric > :first-child {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+
+.backtest__metric > :last-child {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.backtest__chart-head {
+  display: flex;
+  gap: 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  opacity: 0.65;
+}
+
+.backtest__legend::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 2px;
+  margin-right: 5px;
+  vertical-align: middle;
+  background: var(--up);
+}
+
+.backtest__legend--bench::before {
+  background: #8b93a3;
+}
+
+.equity-chart {
+  width: 100%;
+  height: 150px;
+}
+
+.backtest__empty {
+  padding: 14px 0 2px;
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.45;
+}
+
+.backtest__open {
+  font-family: var(--mono);
+  font-size: 10px;
+  opacity: 0.55;
+}
+
+.backtest__trades {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--hairline);
+}
+
+.backtest__trade {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.backtest__trade > :first-child {
+  opacity: 0.55;
+}
+
+/* The connect dialog's footer claim, kept quiet so it reads as a footnote. */
+.dialog__security {
+  font-size: 11px;
+  opacity: 0.45;
+  margin-right: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Agent pane
+   The rail is 340px wide, so everything here is deliberately dense: no
+   avatars, no bubbles, one accent. Tool calls collapse to a single line.
+   -------------------------------------------------------------------------- */
+
+.agent-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.agent-panel--loading {
+  opacity: 0.4;
+}
+
+.agent-thread {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.agent-thread__viewport {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Empty state */
+
+.agent-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Fills the viewport so the copy centres instead of hugging the top edge. */
+  flex: 1;
+  justify-content: center;
+  padding: 16px 4px;
+}
+
+.agent-empty__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.agent-empty__hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  opacity: 0.55;
+}
+
+.agent-empty__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.agent-chip {
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.agent-chip:hover {
+  background: var(--color-background-surface);
+}
+
+/* Messages */
+
+.agent-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-msg__body {
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* A prompt must read as input, not as an answer. */
+.agent-msg__body--user {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.agent-msg__body--assistant {
+  color: var(--color-text-primary);
+}
+
+.agent-text {
+  display: block;
+}
+
+/* Assistant markdown: block elements must not inherit the pre-wrap that keeps
+   plain user prompts readable. */
+.agent-md {
+  white-space: normal;
+}
+
+.agent-md p {
+  margin: 0 0 6px;
+}
+
+.agent-md p:last-child {
+  margin-bottom: 0;
+}
+
+.agent-md ul,
+.agent-md ol {
+  margin: 4px 0 6px;
+  padding-left: 18px;
+}
+
+.agent-md li {
+  margin: 2px 0;
+}
+
+.agent-md strong {
+  font-weight: 600;
+}
+
+.agent-md code {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--color-background-surface);
+}
+
+.agent-md pre {
+  margin: 6px 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--color-background-surface);
+  overflow: auto;
+}
+
+.agent-md pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.agent-md a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* A failed turn gets a sentence, not an empty bubble. */
+.agent-error {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--down);
+}
+
+/* Tool calls */
+
+.agent-tool {
+  border-left: 2px solid var(--hairline);
+  margin: 6px 0;
+  padding-left: 8px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--color-text-secondary);
+}
+
+.agent-tool--error {
+  border-left-color: var(--down);
+}
+
+.agent-tool__summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.agent-tool__summary::-webkit-details-marker {
+  display: none;
+}
+
+.agent-tool__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--up);
+  flex: 0 0 auto;
+}
+
+.agent-tool__dot[data-running='true'] {
+  background: var(--color-text-primary);
+  opacity: 0.45;
+  animation: agent-pulse 1s ease-in-out infinite;
+}
+
+@keyframes agent-pulse {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+.agent-tool__name {
+  font-weight: 600;
+}
+
+.agent-tool__args {
+  opacity: 0.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-tool__result {
+  margin: 4px 0 0;
+  padding: 5px 6px;
+  border-radius: 4px;
+  background: var(--color-background-surface);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.45;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Composer */
+
+.agent-composer {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--hairline);
+  padding: 8px;
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.agent-composer__input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--color-background-surface);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 6px 8px;
+}
+
+.agent-composer__input:focus {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: -1px;
+}
+
+.agent-composer__send {
+  flex: 0 0 auto;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--color-text-primary);
+  color: var(--color-background-body);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.agent-composer__send:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
