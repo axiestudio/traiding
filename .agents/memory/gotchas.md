@@ -277,6 +277,16 @@ webview as `is_error`, while `ipc.ts` reads `isError`, so the flag was always
 **Fix:** add `rename_all_fields = "camelCase"` to the enum. Guard:
 `agent::tests::stream_events_serialize_camel_case` pins every frame shape.
 
+## 26. Chart rejects a valid paper key
+
+**Symptom:** `Alpaca rejected the credentials: subscription does not permit
+querying recent SIP data` fills the chart on a free plan.
+
+**Cause:** bars requests omitted `feed`, so Alpaca used SIP.
+
+**Fix:** set `feed: Some(Feed::IEX)` in every `bars::ListReqInit` (chart and
+backtester). IEX works on every plan; SIP is paid.
+
 ## 25. Agent failure looks like an empty bubble
 
 **Symptom:** a bad key, rate limit or provider outage ends the turn, but the

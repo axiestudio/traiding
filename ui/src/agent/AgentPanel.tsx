@@ -88,7 +88,7 @@ export function AgentPanel() {
         <div className="agent-empty">
           <p className="agent-empty__title">No model key</p>
           <p className="agent-empty__hint">
-            Add OPENROUTER_API_KEY to .env, then restart.
+Add OPENROUTER_API_KEY to ~/.config/dev.traiding.terminal/.env
           </p>
         </div>
       </div>

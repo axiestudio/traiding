@@ -23,7 +23,7 @@ you need; do not read them all.
 
 ## Current state
 
-- Version 0.2.0, single binary ≈ 7.7 MB stripped (bundled SQLite).
+- Version 0.1.0, single binary ≈ 7.7 MB stripped (bundled SQLite).
 - IPC covers session, account, orders, bars/quotes, streams, backtests and storage.
 - IEX quote/trade stream and order-update stream run in Rust behind Tauri events;
   REST polling remains the fallback.

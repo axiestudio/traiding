@@ -68,7 +68,7 @@ Options:
 
 Environment:
   TRAIDING_REPO    GitHub repo to download from (default: $REPO)
-  TRAIDING_VERSION Pin a release tag, e.g. v0.2.0
+  TRAIDING_VERSION Pin a release tag, e.g. v0.1.0
 EOF
 }
 
@@ -238,7 +238,7 @@ download_appimage() {
   tag="${TRAIDING_VERSION:-$(latest_tag || true)}"
   if [ -z "${tag:-}" ]; then
     die "could not determine the latest release of $REPO.
-     Set TRAIDING_VERSION=v0.2.0, or use --from-source."
+     Set TRAIDING_VERSION=v0.1.0, or use --from-source."
   fi
   say "${DIM}release $tag, architecture $appimage_arch${RESET}"
 

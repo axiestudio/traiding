@@ -12,21 +12,16 @@ results live in a local SQLite database.
 curl -fsSL https://raw.githubusercontent.com/axiestudio/traiding/main/install.sh | sh
 ```
 
-That resolves the latest release, downloads the AppImage and drops a launcher in
-`~/.local/share/applications`. Linux needs `webkit2gtk-4.1`; the script tells you
-the right package name for your distro if it is missing.
-
-Other modes:
+Downloads the latest AppImage into `~/.local` and adds a launcher. Linux needs
+`webkit2gtk-4.1`; the script names your distro's package if it is missing.
 
 ```bash
-install.sh --from-source             # build with cargo + npm, install locally
-install.sh --deb                     # system package instead of AppImage
-install.sh --prefix /opt/traiding    # install somewhere else
-install.sh --uninstall               # remove it again
+install.sh --from-source    # build locally
+install.sh --deb            # system package
+install.sh --uninstall      # remove
 ```
 
-Pin a release with `TRAIDING_VERSION=v0.2.0`, or point at another fork with
-`TRAIDING_REPO=you/traiding`.
+`TRAIDING_VERSION=v0.1.0` pins a release; `TRAIDING_REPO=you/traiding` uses a fork.
 
 ## Develop
 
@@ -52,28 +47,24 @@ the connect dialog appears instead.
 
 ## Agent
 
-The **Agent** tab is a BYOK assistant. Put an OpenRouter key in `.env` and
-restart:
+BYOK chat in the **Agent** tab. Add an OpenRouter key to `.env` and restart:
 
 ```bash
 OPENROUTER_API_KEY=sk-or-...
 ```
 
-It defaults to `inclusionai/ling-3.2-flash:free`; set `AGENT_MODEL` to change
-it, or `AGENT_REASONING=1` for a hybrid-reasoning model. The key stays in the
-Rust process — the webview only receives whether one is configured. The agent
-has ten read-only tools (quote, bars, positions, account, orders, snapshot,
-news, clock, watchlists, calendar); it cannot place, change or cancel an order.
+In the installed app the file lives at
+`~/.config/dev.traiding.terminal/.env`. Defaults to
+`inclusionai/ling-3.2-flash:free`; `AGENT_MODEL` changes it, `AGENT_REASONING=1`
+uses a reasoning model. Read-only: it cannot place, change or cancel orders.
 
 ## Verify
 
 ```bash
 cargo check --all-targets && cargo test && npm run typecheck
-npm run build
 ```
 
-Rendering is checked separately with the dev-only IPC mock and a real webview
-capture. See [`.agents/memory/verification.md`](.agents/memory/verification.md).
+Rendering: [`.agents/memory/verification.md`](.agents/memory/verification.md).
 
 ## Local data
 
@@ -136,10 +127,8 @@ tab are restored on the next launch.
 - **Backtests run locally.** `src/backtest.rs` fetches daily bars through the same
   `apca` client, executes SMA crossover signals on the next open, and stores the
   result JSON in SQLite.
-- **The agent stays in Rust.** `src/agent.rs` streams OpenRouter SSE, adds the
-  paper/live system prompt and runs every tool in-process, so the key never
-  reaches the webview. Tool calls render inline with the reply; failures render
-  as a sentence instead of an empty bubble.
+- **The agent stays in Rust.** `src/agent.rs` streams OpenRouter SSE and runs
+  every tool in-process; the key never reaches the webview.
 - **Credentials never reach the webview.** The UI sends them once; Rust validates
   them against `/v2/account` and keeps them in `AppState` behind an `RwLock`. Only
   a masked key (`PKTE…3456`) is ever returned, and Disconnect drops the session.

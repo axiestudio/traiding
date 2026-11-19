@@ -36,6 +36,7 @@ pub fn run() {
             let state = Arc::new(AppState::new());
             open_storage(app.handle(), &state);
             log_cli_location(app.handle());
+            load_config_env(app.handle());
             preauthenticate(&state);
             if state.session().is_ok() {
                 state.start_order_stream(app.handle().clone());
@@ -110,6 +111,17 @@ fn log_cli_location(app: &tauri::AppHandle) {
         Err(err) => {
             tracing::warn!(%err, "bundled Alpaca CLI unavailable — agent CLI tools will fail")
         }
+    }
+}
+
+/// Load `.env` from the app config directory.
+///
+/// The AppImage runs with its mount as the working directory, so a project
+/// `.env` is never found. This gives installed builds a stable place for the
+/// OpenRouter key (the app itself still writes no secrets).
+fn load_config_env(app: &tauri::AppHandle) {
+    if let Ok(dir) = app.path().app_config_dir() {
+        let _ = dotenvy::from_path(dir.join(".env"));
     }
 }
 

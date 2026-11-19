@@ -101,10 +101,7 @@ copy makes AppImage bundling fail with `Text file busy` (gotcha 13).
 
 ## Last verified
 
-2026-11-19 — browser dev auto-mock: dashboard at 1440×900, connect dialog and a
-successful connect at 1080×720, backtest result, live-feed badge; agent tab at
-both sizes with an ordered text → tool card → text reply, markdown bold, and an
-inline OpenRouter error (`?mock=agent-error`); `cargo check`, 29 Rust tests,
-`npm run typecheck` and `npm run ui:build` green, with the mock absent from
-`ui/dist`. Native Xvfb capture, a live Alpaca socket and a real OpenRouter turn
-are not re-run in this pass.
+2026-11-19 — v0.1.0 AppImage under Xvfb: connected with a paper key from the
+config-dir `.env`, IEX candles rendered, live agent turn returned a quote with
+an inline tool card. `cargo check`, 29 tests and `npm run typecheck` green.
+Browser-mock captures from the same day cover both window sizes.

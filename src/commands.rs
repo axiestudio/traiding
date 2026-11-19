@@ -19,6 +19,7 @@ use tauri::{AppHandle, State};
 use apca::api::v2::{account, asset, assets, clock, order, orders, position, positions};
 use apca::data::v2::bars::{self, Adjustment, TimeFrame};
 use apca::data::v2::last_quotes;
+use apca::data::v2::Feed;
 
 use crate::error::{bad_request, from_request_error, AppError};
 use crate::state::{AssetRow, AppState, Session};
@@ -502,6 +503,8 @@ pub async fn get_bars(
     let req = bars::ListReqInit {
         limit: Some(limit.unwrap_or(10_000).clamp(1, 10_000)),
         adjustment: Some(Adjustment::All),
+        // IEX works on every plan; SIP is rejected on free accounts for recent data.
+        feed: Some(Feed::IEX),
         ..Default::default()
     }
     .init(&symbol, start, end, timeframe);
@@ -562,6 +565,7 @@ pub(crate) async fn daily_bars(
     let req = bars::ListReqInit {
         limit: Some(10_000),
         adjustment: Some(Adjustment::All),
+        feed: Some(Feed::IEX),
         ..Default::default()
     }
     .init(symbol, start, end, TimeFrame::OneDay);
